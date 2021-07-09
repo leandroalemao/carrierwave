@@ -30,7 +30,7 @@ module CarrierWave
     #
     # Google credentials contain the following keys:
     # [:google_storage_access_key_id]
-    # [:google_storage_secrete_access_key]
+    # [:google_storage_secret_access_key]
     #
     #
     # Local credentials contain the following keys:
@@ -147,8 +147,9 @@ module CarrierWave
           :public => uploader.fog_public
         ).files.all(:prefix => uploader.cache_dir).each do |file|
           # generate_cache_id returns key formated TIMEINT-PID(-COUNTER)-RND
-          time = file.key.scan(/(\d+)-\d+-\d+(?:-\d+)?/).first.map { |t| t.to_i }
-          time = Time.at(*time)
+          matched = file.key.match(/(\d+)-\d+-\d+(?:-\d+)?/)
+          next unless matched
+          time = Time.at(matched[1].to_i)
           file.destroy if time < (Time.now.utc - seconds)
         end
       end
@@ -200,7 +201,7 @@ module CarrierWave
             # avoid a get by using local references
             local_directory = connection.directories.new(:key => @uploader.fog_directory)
             local_file = local_directory.files.new(:key => path)
-            expire_at = options[:expire_at] || ::Fog::Time.now + @uploader.fog_authenticated_url_expiration
+            expire_at = options[:expire_at] || ::Fog::Time.now.since(@uploader.fog_authenticated_url_expiration.to_i)
             case @uploader.fog_credentials[:provider]
               when 'AWS', 'Google'
                 # Older versions of fog-google do not support options as a parameter
@@ -450,7 +451,7 @@ module CarrierWave
         # @return [CarrierWave::Storage::Fog::File] the location where the file will be stored.
         #
         def copy_to(new_path)
-          connection.copy_object(@uploader.fog_directory, file.key, @uploader.fog_directory, new_path, acl_header)
+          connection.copy_object(@uploader.fog_directory, file.key, @uploader.fog_directory, new_path, copy_options)
           CarrierWave::Storage::Fog::File.new(@uploader, @base, new_path)
         end
 
@@ -492,6 +493,13 @@ module CarrierWave
         #
         def file
           @file ||= directory.files.head(path)
+        end
+
+        def copy_options
+          options = {}
+          options.merge!(acl_header) if acl_header.present?
+          options['Content-Type'] ||= content_type if content_type
+          options.merge(@uploader.fog_attributes)
         end
 
         def acl_header

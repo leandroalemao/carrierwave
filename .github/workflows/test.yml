@@ -26,14 +26,14 @@ jobs:
             experimental: false
           - ruby: 3.0
             gemfile: gemfiles/rails-master.gemfile
-            experimental: true
+            experimental: false
           - ruby: ruby-head
             gemfile: gemfiles/rails-6-1.gemfile
             experimental: true
           - ruby: jruby-head
             gemfile: gemfiles/rails-6-0.gemfile
-            experimental: true
-    runs-on: ubuntu-16.04
+            experimental: false
+    runs-on: ubuntu-20.04
     services:
       postgres:
         image: postgres:11
@@ -63,6 +63,10 @@ jobs:
           ${{ runner.os }}-gems-${{ matrix.ruby }}-
     - name: Setup ImageMagick policy
       run: sudo sh -c 'echo '\''<policymap><policy domain="coder" rights="read|write" pattern="PDF" /></policymap>'\'' > /etc/ImageMagick-6/policy.xml'
+    - name: Install ghostscript to process PDF
+      run: sudo apt-get -y install ghostscript
+    - name: Install libvips-dev for Carrierwave::Vips
+      run: sudo apt-get install libvips-dev
     - name: Install dependencies
       run: bundle install --jobs=3 --retry=3 --path=vendor/bundle || [ "$EXPERIMENTAL" == "true" ] && true
     - name: Run RSpec
